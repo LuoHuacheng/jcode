@@ -528,6 +528,23 @@ impl SkillRegistry {
         self.skills.get(name)
     }
 
+    /// Combine prompts for configured skill names in declaration order.
+    ///
+    /// Blank names, duplicate names, and names that are not currently loaded
+    /// are ignored. This makes a persistent default-skill configuration robust
+    /// when a referenced external skill is temporarily unavailable.
+    pub fn prompts_for_names(&self, names: &[String]) -> Option<String> {
+        let mut seen = std::collections::HashSet::new();
+        let prompts: Vec<String> = names
+            .iter()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty() && seen.insert(*name))
+            .filter_map(|name| self.get(name).map(Skill::get_prompt))
+            .collect();
+
+        (!prompts.is_empty()).then(|| prompts.join("\n\n"))
+    }
+
     /// List all available skills.
     ///
     /// Sorted by skill name so the ordering is deterministic. The backing store
@@ -1050,6 +1067,35 @@ mod tests {
         assert_eq!(
             order_a, order_b,
             "list() ordering must be identical across HashMap instances"
+        );
+    }
+
+    #[test]
+    fn prompts_for_names_preserves_order_and_ignores_invalid_entries() {
+        let mut registry = SkillRegistry::default();
+        registry.skills.insert(
+            "first".to_string(),
+            test_skill("first", "first", "First instructions."),
+        );
+        registry.skills.insert(
+            "second".to_string(),
+            test_skill("second", "second", "Second instructions."),
+        );
+
+        let prompts = registry.prompts_for_names(&[
+            " second ".to_string(),
+            "missing".to_string(),
+            "second".to_string(),
+            "".to_string(),
+            "first".to_string(),
+        ]);
+
+        assert_eq!(
+            prompts.as_deref(),
+            Some(
+                "# Skill: second\n\nsecond\n\nSecond instructions.\n\n\
+                 # Skill: first\n\nfirst\n\nFirst instructions."
+            )
         );
     }
 

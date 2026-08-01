@@ -515,6 +515,11 @@ pub struct AuthConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentsConfig {
+    /// Skills automatically applied to new agent sessions when no skill was
+    /// explicitly activated with a slash command. Entries are evaluated in
+    /// order, duplicates and unavailable skills are ignored.
+    #[serde(default)]
+    pub default_skills: Vec<String>,
     /// Optional default model override for spawned swarm/subagent sessions.
     ///
     /// Leave unset (or use `"inherit"` / `"coordinator"`) to have spawned swarm
@@ -622,6 +627,7 @@ fn default_memory_rerank_min_agree() -> usize {
 impl Default for AgentsConfig {
     fn default() -> Self {
         Self {
+            default_skills: Vec::new(),
             swarm_model: None,
             swarm_spawn_mode: SwarmSpawnMode::default(),
             swarm_gallery_max_pct: None,

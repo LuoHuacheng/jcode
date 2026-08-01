@@ -15,10 +15,14 @@ impl App {
         }
 
         let skills = self.current_skills_snapshot();
-        let skill_prompt = self
+        let explicit_skill_prompt = self
             .active_skill
             .as_ref()
             .and_then(|name| skills.get(name).map(|s| s.get_prompt().to_string()));
+        // A slash-invoked skill deliberately overrides configured defaults for
+        // this session. Otherwise all configured defaults compose in order.
+        let skill_prompt = explicit_skill_prompt
+            .or_else(|| skills.prompts_for_names(&crate::config::config().agents.default_skills));
         let available_skills: Vec<crate::prompt::SkillInfo> = skills
             .list()
             .iter()

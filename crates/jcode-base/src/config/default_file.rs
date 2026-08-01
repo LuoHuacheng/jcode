@@ -393,6 +393,12 @@ cross_provider_failover = "countdown"
 # Defaults for spawned helper agents (swarm workers, subagents, sidecars).
 # All keys are optional; the values below are the built-in defaults.
 #
+# Skills automatically applied to each new session until a slash-invoked skill
+# overrides them for that session. Entries apply in list order; duplicate or
+# unavailable names are ignored. For example:
+# default_skills = ["caveman", "security-review"]
+# default_skills = []
+#
 # Default model for spawned swarm/subagent sessions.
 # Leave unset (or "inherit"/"coordinator") so workers inherit the model of the
 # session that spawned them. Set a concrete model only to pin every worker to it.

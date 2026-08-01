@@ -86,10 +86,17 @@ impl Agent {
         }
 
         let skills = self.current_skills_snapshot();
-        let skill_prompt = self
+        let explicit_skill_prompt = self
             .active_skill
             .as_ref()
             .and_then(|name| skills.get(name).map(|skill| skill.get_prompt().to_string()));
+        // A slash-invoked skill deliberately overrides the configured baseline
+        // for this session. Otherwise all configured defaults compose in order.
+        let skill_prompt = resolve_skill_prompt(
+            explicit_skill_prompt,
+            &skills,
+            &crate::config::config().agents.default_skills,
+        );
 
         let available_skills: Vec<crate::prompt::SkillInfo> = self
             .current_skills_snapshot()
@@ -132,5 +139,35 @@ impl Agent {
         _memory_event_tx: Option<crate::memory::MemoryEventSink>,
     ) -> Option<crate::memory::PendingMemory> {
         self.build_memory_prompt_nonblocking_shared(messages.to_vec().into(), _memory_event_tx)
+    }
+}
+
+fn resolve_skill_prompt(
+    explicit_skill_prompt: Option<String>,
+    skills: &crate::skill::SkillRegistry,
+    default_skills: &[String],
+) -> Option<String> {
+    explicit_skill_prompt.or_else(|| skills.prompts_for_names(default_skills))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_skill_prompt;
+    use crate::skill::SkillRegistry;
+
+    #[test]
+    fn explicit_skill_prompt_overrides_default_skills() {
+        let registry = SkillRegistry::default();
+        let default_skills = vec!["caveman".to_string()];
+
+        assert_eq!(
+            resolve_skill_prompt(
+                Some("# Skill: review\n\nReview instructions".to_string()),
+                &registry,
+                &default_skills,
+            )
+            .as_deref(),
+            Some("# Skill: review\n\nReview instructions")
+        );
     }
 }

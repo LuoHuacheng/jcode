@@ -51,6 +51,16 @@ fn swarm_max_concurrent_agents_defaults_to_safe_live_worker_budget() {
 }
 
 #[test]
+fn default_skills_defaults_empty_and_parses_multiple_names() {
+    assert!(Config::default().agents.default_skills.is_empty());
+
+    let cfg: Config =
+        toml::from_str("[agents]\ndefault_skills = [\"caveman\", \"security-review\"]\n")
+            .expect("default_skills should parse");
+    assert_eq!(cfg.agents.default_skills, ["caveman", "security-review"]);
+}
+
+#[test]
 fn rtk_defaults_enabled_and_parses_project_exclusions() {
     assert!(Config::default().rtk.enabled);
 
