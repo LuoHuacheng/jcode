@@ -532,10 +532,9 @@ async fn handle_remote_key_internal(
                 app.paste_from_clipboard();
                 return Ok(());
             }
-            // Cmd+L mirrors Ctrl+L: terminal-style clear (blank spacer
-            // pushes the transcript up into scrollback).
+            // Cmd+L mirrors Ctrl+L: snap to the bottom of the chat.
             KeyCode::Char('l') => {
-                app.clear_view_terminal_style();
+                app.follow_chat_bottom();
                 return Ok(());
             }
             _ => {}
@@ -638,12 +637,11 @@ async fn handle_remote_key_internal(
                 return Ok(());
             }
             KeyCode::Char('l') => {
-                // Terminal-style clear: a viewport-height blank spacer pushes
-                // the transcript up into scrollback, leaving a clean prompt.
-                // Nothing is deleted; /cls does the actual view wipe. The
+                // Terminal-style "clean prompt": snap to the chat bottom and
+                // resume tail-follow. /cls does the actual view wipe. The
                 // diagram/diff focus handler above wins while a pane is
                 // available.
-                app.clear_view_terminal_style();
+                app.follow_chat_bottom();
                 return Ok(());
             }
             KeyCode::Char('u') => {
