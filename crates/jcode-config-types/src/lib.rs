@@ -754,6 +754,29 @@ pub struct TerminalConfig {
     pub preferred: Option<String>,
 }
 
+/// RTK command-wrapper configuration.
+///
+/// When enabled, Jcode prefixes a small, strictly read-only allowlist of shell
+/// commands with `rtk`. Projects listed in `excluded_projects` are matched by
+/// directory prefix, so excluding a repository also excludes its subdirectories.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RtkConfig {
+    /// Prefix eligible read-only shell commands with `rtk` (default: true).
+    pub enabled: bool,
+    /// Absolute project paths where RTK wrapping is disabled.
+    pub excluded_projects: Vec<String>,
+}
+
+impl Default for RtkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            excluded_projects: Vec::new(),
+        }
+    }
+}
+
 /// Lifecycle hooks: external commands jcode runs at well-defined points.
 ///
 /// Hook commands are parsed shell-style (quotes work) but executed directly,

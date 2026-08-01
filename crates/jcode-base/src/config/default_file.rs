@@ -317,6 +317,15 @@ profile = "full"
 # Disable all built-in tools unless enabled is set.
 disable_base_tools = false
 
+[rtk]
+# Prefix a strictly read-only command allowlist with `rtk` (default: true).
+# Eligible commands include git status/diff/log, rg, safe find invocations, and
+# common test/lint commands. Shell pipelines, redirects, deployment commands,
+# curl, migrations, and any command outside the allowlist are never wrapped.
+enabled = true
+# Disable wrapping for a project and all its subdirectories. Use absolute paths.
+# excluded_projects = ["/path/to/project"]
+
 [acp]
 # Agent Client Protocol adapter compatibility profile: standard, extended, or full.
 # standard emits only spec-compatible ACP messages.

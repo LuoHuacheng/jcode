@@ -10,8 +10,9 @@ pub use jcode_config_types::{
     LatexRenderingMode, LaunchHotkeyEntry, LaunchHotkeysConfig, MarkdownSpacingMode,
     NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig, NamedProviderType,
     NativeScrollbarConfig, NotificationsConfig, OverscrollStatusMode, PowerConfig, ProviderConfig,
-    ReasoningDisplayMode, SafetyConfig, SessionPickerResumeAction, SponsorsConfig, SwarmSpawnMode,
-    SwarmStripLayout, TerminalConfig, UpdateChannel, WebSearchConfig, WebSearchEngine,
+    ReasoningDisplayMode, RtkConfig, SafetyConfig, SessionPickerResumeAction, SponsorsConfig,
+    SwarmSpawnMode, SwarmStripLayout, TerminalConfig, UpdateChannel, WebSearchConfig,
+    WebSearchEngine,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -477,6 +478,9 @@ pub struct Config {
 
     /// Built-in tool exposure configuration
     pub tools: ToolConfig,
+
+    /// RTK wrapper configuration for safe read-only shell commands.
+    pub rtk: RtkConfig,
 
     /// Agent Client Protocol adapter configuration
     pub acp: AcpConfig,

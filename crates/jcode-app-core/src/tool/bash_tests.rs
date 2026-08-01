@@ -5,6 +5,75 @@ use crate::tool::bash::{BashTool, parse_heuristic_progress};
 use serde_json::json;
 use tokio::sync::mpsc;
 
+#[test]
+fn rtk_wraps_only_safe_read_only_commands() {
+    let rtk = crate::config::RtkConfig::default();
+    for command in [
+        "git status --short",
+        "git diff --stat",
+        "git log --oneline -5",
+        "rg TODO src",
+        "find src -name '*.rs'",
+        "cargo test -p jcode-app-core",
+        "cargo fmt --check",
+        "pnpm lint",
+    ] {
+        assert_eq!(
+            rewrite_command_with_rtk(command, &rtk, Some(std::path::Path::new("/tmp"))),
+            format!("rtk {command}"),
+            "{command} should be wrapped"
+        );
+    }
+}
+
+#[test]
+fn rtk_rejects_mutating_or_composed_commands() {
+    let rtk = crate::config::RtkConfig::default();
+    for command in [
+        "git commit -m message",
+        "find . -delete",
+        "find . -fprintf report.txt '%p\n'",
+        "curl https://example.com",
+        "git branch -d old-branch",
+        "git remote add origin https://example.com/repo.git",
+        "git status; rm -rf build",
+        "rg TODO | tee results.txt",
+        "cargo fmt",
+        "prisma migrate deploy",
+    ] {
+        assert_eq!(
+            rewrite_command_with_rtk(command, &rtk, Some(std::path::Path::new("/tmp"))),
+            command,
+            "{command} must not be wrapped"
+        );
+    }
+}
+
+#[test]
+fn rtk_can_be_disabled_or_excluded_per_project() {
+    let disabled = crate::config::RtkConfig {
+        enabled: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        rewrite_command_with_rtk("git status", &disabled, Some(std::path::Path::new("/tmp"))),
+        "git status"
+    );
+
+    let excluded = crate::config::RtkConfig {
+        excluded_projects: vec!["/tmp/project".to_string()],
+        ..Default::default()
+    };
+    assert_eq!(
+        rewrite_command_with_rtk(
+            "git status",
+            &excluded,
+            Some(std::path::Path::new("/tmp/project/subdir")),
+        ),
+        "git status"
+    );
+}
+
 fn make_ctx(stdin_tx: Option<mpsc::UnboundedSender<StdinInputRequest>>) -> ToolContext {
     ToolContext {
         session_id: "test-session".to_string(),

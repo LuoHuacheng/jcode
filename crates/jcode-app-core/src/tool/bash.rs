@@ -34,6 +34,80 @@ const BASH_TOOL_DESCRIPTION: &str = "Run a bash command.";
 const WINDOWS_SHELL_TOOL_DESCRIPTION: &str =
     "Run a Windows cmd.exe command (compatibility name `bash`). Use cmd.exe syntax, not Bash.";
 
+const UNSAFE_SHELL_SYNTAX: &[char] = &[';', '|', '&', '>', '<', '`', '\n', '\r'];
+const UNSAFE_FIND_ACTIONS: &[&str] = &[
+    "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls",
+];
+
+fn is_excluded_rtk_project(working_dir: Option<&Path>, excluded_projects: &[String]) -> bool {
+    let Some(working_dir) = working_dir else {
+        return false;
+    };
+    let working_dir = std::fs::canonicalize(working_dir).unwrap_or_else(|_| working_dir.into());
+    excluded_projects.iter().any(|project| {
+        let project = Path::new(project);
+        let project = std::fs::canonicalize(project).unwrap_or_else(|_| project.into());
+        working_dir.starts_with(project)
+    })
+}
+
+/// Return a command prefixed with `rtk` only when it is a deliberately small,
+/// read-only command shape. This rejects shell composition outright so a safe
+/// first command cannot hide a later mutating command in a pipeline or chain.
+fn rewrite_command_with_rtk(
+    command: &str,
+    rtk: &crate::config::RtkConfig,
+    working_dir: Option<&Path>,
+) -> String {
+    if cfg!(windows) || !rtk.enabled || is_excluded_rtk_project(working_dir, &rtk.excluded_projects)
+    {
+        return command.to_string();
+    }
+
+    let trimmed = command.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with("rtk ")
+        || trimmed
+            .chars()
+            .any(|character| UNSAFE_SHELL_SYNTAX.contains(&character))
+        || trimmed.contains("$(")
+    {
+        return command.to_string();
+    }
+
+    let words: Vec<&str> = trimmed.split_ascii_whitespace().collect();
+    let Some(program) = words.first().copied() else {
+        return command.to_string();
+    };
+    let args = &words[1..];
+    let eligible = match program {
+        "rg" | "grep" | "ls" | "cat" | "head" | "tail" | "pwd" | "gitk" => true,
+        "git" => matches!(
+            args.first().copied(),
+            Some("status" | "diff" | "log" | "show" | "rev-parse")
+        ),
+        "find" => !args.iter().any(|arg| UNSAFE_FIND_ACTIONS.contains(arg)),
+        "cargo" => {
+            matches!(args.first().copied(), Some("test" | "clippy"))
+                || matches!(args, ["fmt", "--check", ..])
+        }
+        "pytest" | "jest" | "vitest" | "eslint" | "ruff" | "mypy" | "go" => {
+            program != "go" || matches!(args.first().copied(), Some("test" | "vet"))
+        }
+        "npm" | "pnpm" | "yarn" | "bun" => matches!(
+            args,
+            ["test", ..] | ["run", "test", ..] | ["run", "lint", ..] | ["lint", ..]
+        ),
+        _ => false,
+    };
+
+    if eligible {
+        format!("rtk {trimmed}")
+    } else {
+        command.to_string()
+    }
+}
+
 /// Build a clear timeout message. The `timeout` param is in milliseconds, which
 /// agents frequently mistake for seconds (e.g. passing 1000 thinking it means
 /// 1000s when it is 1s). Spell out the seconds equivalent and, for suspiciously
@@ -699,6 +773,12 @@ impl Tool for BashTool {
         ) {
             return Err(anyhow::anyhow!(refusal));
         }
+
+        params.command = rewrite_command_with_rtk(
+            &params.command,
+            &crate::config::config().rtk,
+            ctx.working_dir.as_deref(),
+        );
 
         if run_in_background {
             return self.execute_background(params, ctx).await;
