@@ -51,6 +51,25 @@ fn swarm_max_concurrent_agents_defaults_to_safe_live_worker_budget() {
 }
 
 #[test]
+fn rtk_defaults_enabled_and_parses_project_exclusions() {
+    assert!(Config::default().rtk.enabled);
+
+    let config: Config = toml::from_str(
+        r#"
+            [rtk]
+            enabled = false
+            excluded_projects = ["/work/no-rtk", "/work/legacy"]
+        "#,
+    )
+    .expect("rtk configuration should parse");
+    assert!(!config.rtk.enabled);
+    assert_eq!(
+        config.rtk.excluded_projects,
+        ["/work/no-rtk", "/work/legacy"]
+    );
+}
+
+#[test]
 fn mermaid_feature_defaults_on_and_parses_false() {
     assert!(Config::default().features.mermaid);
 
