@@ -28,10 +28,12 @@ jobs:
       - name: Configure SSH for cargo git dependencies
         # Forks and public-only builds do not define DEPLOY_KEY. The ssh-agent
         # action rejects an empty key before Cargo can use public dependencies.
-        if: secrets.DEPLOY_KEY != ''
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        if: env.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-private-key: ${{ env.DEPLOY_KEY }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -178,10 +180,12 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
-        if: secrets.DEPLOY_KEY != ''
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        if: env.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-private-key: ${{ env.DEPLOY_KEY }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -417,10 +421,12 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
-        if: secrets.DEPLOY_KEY != ''
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        if: env.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-private-key: ${{ env.DEPLOY_KEY }}
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -671,10 +677,12 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
-        if: secrets.DEPLOY_KEY != ''
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        if: env.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-private-key: ${{ env.DEPLOY_KEY }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
