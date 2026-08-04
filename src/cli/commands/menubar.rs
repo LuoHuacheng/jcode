@@ -42,6 +42,10 @@ fn user_root_session_presence() -> Vec<SessionPresence> {
         // A marker can briefly precede its first persisted snapshot. Keep an
         // unknown session visible for this read rather than hiding a new window.
         .filter(|presence| load_user_root_session(&presence.session_id).unwrap_or(true))
+        // The menu bar is a presence indicator, not a session history picker.
+        // Only show sessions that are currently doing work. Idle sessions remain
+        // resumable through the normal session picker.
+        .filter(|presence| presence.streaming)
         .collect()
 }
 
@@ -589,6 +593,9 @@ mod macos {
                     .insert(presence.session_id.clone(), visible);
                 visible
             });
+            // Do not fill the menu bar with sessions merely registered on the
+            // shared server. Only a currently streaming session is active here.
+            sessions.retain(|presence| presence.streaming);
             sessions.sort_by_key(|s| (Reverse(s.streaming), s.session_id.clone()));
 
             let counts = counts_for_presence(&sessions);
@@ -888,7 +895,7 @@ mod tests {
     }
 
     #[test]
-    fn menu_presence_includes_only_user_root_sessions() {
+    fn menu_presence_includes_only_streaming_user_root_sessions() {
         let _guard = crate::storage::lock_test_env();
         let previous_home = std::env::var_os("JCODE_HOME");
         let temp = tempfile::tempdir().expect("create temporary JCODE_HOME");
@@ -918,6 +925,15 @@ mod tests {
         );
         child.mark_active();
         child.save().expect("save child session");
+
+        // Registered but idle sessions must not appear in the menu bar.
+        assert!(user_root_session_presence().is_empty());
+
+        // A streaming user root session remains visible. Debug and child
+        // sessions stay filtered even while streaming.
+        let _root_streaming = crate::session::StreamingGuard::new(root.id.clone());
+        let _debug_streaming = crate::session::StreamingGuard::new(debug.id.clone());
+        let _child_streaming = crate::session::StreamingGuard::new(child.id.clone());
 
         let visible = user_root_session_presence();
         assert_eq!(
