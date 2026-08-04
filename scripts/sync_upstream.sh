@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
-# Update official/master then merge it into integration/master without touching local/main.
+# Update official/master then merge it into integration/master in one checkout.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/sync_upstream.sh [--base-dir DIR] [--dry-run]
+Usage: scripts/sync_upstream.sh [--dry-run]
 
 Fetches upstream/master, advances local/main to committed main, fast-forwards
-official/master in jcode-official, then merges both into integration/master in
-jcode-integration. Uncommitted files are never included. Conflicts stop the
-merge in integration worktree for manual resolution.
+official/master, then merges both into integration/master. Script temporarily
+checks out integration/master and returns to main. Uncommitted files are never
+included. Conflicts remain on integration/master for manual resolution.
 EOF
 }
 
 dry_run=0
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-base_dir="$(dirname "$repo_root")"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --base-dir) [[ $# -ge 2 ]] || { echo 'error: --base-dir needs a path' >&2; exit 2; }; base_dir="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -33,42 +31,23 @@ run() {
   [[ "$dry_run" -eq 1 ]] || "$@"
 }
 
-official_dir="$base_dir/jcode-official"
-integration_dir="$base_dir/jcode-integration"
-for path in "$official_dir" "$integration_dir"; do
-  git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-    echo "error: missing dual-track worktree: $path" >&2
-    echo 'Run scripts/setup_dual_track.sh first.' >&2
-    exit 1
-  }
-done
-
-[[ "$(git -C "$official_dir" branch --show-current)" == 'official/master' ]] || {
-  echo "error: $official_dir must check out official/master" >&2; exit 1;
-}
-[[ "$(git -C "$integration_dir" branch --show-current)" == 'integration/master' ]] || {
-  echo "error: $integration_dir must check out integration/master" >&2; exit 1;
-}
 [[ "$(git -C "$repo_root" branch --show-current)" == 'main' ]] || {
-  echo "error: $repo_root must check out main to update local/main" >&2; exit 1;
+  echo "error: run from main so script can restore your local branch" >&2; exit 1;
 }
 
-for path in "$official_dir" "$integration_dir"; do
-  if [[ -n "$(git -C "$path" status --porcelain)" ]]; then
-    echo "error: worktree is dirty: $path" >&2
-    echo 'Commit, stash, or discard its changes before syncing.' >&2
-    exit 1
-  fi
-done
+if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
+  echo "error: repository is dirty; commit, stash, or discard changes before syncing." >&2
+  exit 1
+fi
 
 if [[ "$dry_run" -eq 1 ]]; then
   echo
   echo 'Would fetch upstream/master, advance local/main to main, fast-forward official/master, then merge:'
   echo 'Local commits that would be merged:'
-  git -C "$integration_dir" log --oneline HEAD..main
+  git -C "$repo_root" log --oneline integration/master..main
   echo
   echo 'Integration commits that would be merged:'
-  git -C "$integration_dir" log --oneline HEAD..official/master
+  git -C "$repo_root" log --oneline integration/master..official/master
   echo
   echo 'Dry run makes no Git changes or network requests. Re-run without --dry-run to sync.'
   exit 0
@@ -76,28 +55,33 @@ fi
 
 run git -C "$repo_root" fetch upstream master
 run git -C "$repo_root" branch -f local/main main
-run git -C "$official_dir" merge --ff-only upstream/master
+run git -C "$repo_root" branch -f official/master upstream/master
+run git -C "$repo_root" switch integration/master
 
-if ! git -C "$integration_dir" merge --no-ff local/main -m 'Merge local/main into integration/master'; then
+if ! git -C "$repo_root" merge --no-ff local/main -m 'Merge local/main into integration/master'; then
   cat <<EOF
 
-Local merge conflict left only in: $integration_dir
-Resolve there, then run:
-  git -C "$integration_dir" add <resolved-files>
-  git -C "$integration_dir" commit
+Local merge conflict remains on integration/master.
+Resolve, then run:
+  git add <resolved-files>
+  git commit
+  git switch main
 EOF
   exit 1
 fi
 
-if ! git -C "$integration_dir" merge --no-ff official/master -m 'Merge upstream/master into integration/master'; then
+if ! git -C "$repo_root" merge --no-ff official/master -m 'Merge upstream/master into integration/master'; then
   cat <<EOF
 
-Merge conflict left only in: $integration_dir
-Resolve there, then run:
-  git -C "$integration_dir" add <resolved-files>
-  git -C "$integration_dir" commit
+Official merge conflict remains on integration/master.
+Resolve, then run:
+  git add <resolved-files>
+  git commit
+  git switch main
 EOF
   exit 1
 fi
 
-echo "Synced upstream/master into integration/master: $(git -C "$integration_dir" rev-parse --short HEAD)"
+integration_head="$(git -C "$repo_root" rev-parse --short HEAD)"
+run git -C "$repo_root" switch main
+echo "Synced upstream/master into integration/master: $integration_head"
