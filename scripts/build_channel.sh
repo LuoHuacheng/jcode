@@ -8,6 +8,7 @@ Usage: scripts/build_channel.sh <official|local|integration> <build|run|path> [-
 
 Each channel uses:
   ~/.jcode/channels/<channel>/home    runtime state, sessions, server data
+  ~/.jcode/channels/<channel>/runtime daemon lock and Unix sockets
   ~/.jcode/channels/<channel>/target  Cargo artifacts
   ~/.jcode/channels/<channel>/jcode.sock
 
@@ -39,20 +40,21 @@ git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
 
 channel_root="${JCODE_CHANNEL_ROOT:-$HOME/.jcode/channels}/$channel"
 channel_home="$channel_root/home"
+runtime_dir="$channel_root/runtime"
 target_dir="$channel_root/target"
 binary="$channel_root/bin/jcode"
 socket="$channel_root/jcode.sock"
 
 print_paths() {
-  printf 'channel=%s\nsource=%s\nhome=%s\ntarget=%s\nbinary=%s\nsocket=%s\n' \
-    "$channel" "$source_dir" "$channel_home" "$target_dir" "$binary" "$socket"
+  printf 'channel=%s\nsource=%s\nhome=%s\nruntime=%s\ntarget=%s\nbinary=%s\nsocket=%s\n' \
+    "$channel" "$source_dir" "$channel_home" "$runtime_dir" "$target_dir" "$binary" "$socket"
 }
 
 build() {
-  mkdir -p "$(dirname "$binary")" "$channel_home" "$target_dir"
+  mkdir -p "$(dirname "$binary")" "$channel_home" "$runtime_dir" "$target_dir"
   (
     cd "$source_dir"
-    JCODE_HOME="$channel_home" CARGO_TARGET_DIR="$target_dir" \
+    JCODE_HOME="$channel_home" JCODE_RUNTIME_DIR="$runtime_dir" CARGO_TARGET_DIR="$target_dir" \
       ./scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode
   )
   install -m 755 "$target_dir/selfdev/jcode" "$binary"
@@ -64,7 +66,9 @@ case "$action" in
   build) [[ $# -eq 0 ]] || { echo 'error: build accepts no extra arguments' >&2; exit 2; }; build ;;
   run)
     [[ -x "$binary" ]] || build
-    exec env JCODE_HOME="$channel_home" "$binary" run --no-update --socket "$socket" "$@"
+    mkdir -p "$channel_home" "$runtime_dir"
+    exec env JCODE_HOME="$channel_home" JCODE_RUNTIME_DIR="$runtime_dir" \
+      "$binary" run --no-update --socket "$socket" "$@"
     ;;
   *) echo "error: unsupported action: $action" >&2; usage >&2; exit 2 ;;
 esac

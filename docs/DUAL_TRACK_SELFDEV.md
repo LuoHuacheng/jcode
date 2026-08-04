@@ -54,7 +54,7 @@ scripts/build_channel.sh official run '<prompt>'
 scripts/build_channel.sh integration run '<prompt>'
 ```
 
-每个 channel 使用独立 `JCODE_HOME`、`CARGO_TARGET_DIR`、binary 和 socket，默认在
+每个 channel 使用独立 `JCODE_HOME`、`JCODE_RUNTIME_DIR`、`CARGO_TARGET_DIR`、binary 和 socket，默认在
 `~/.jcode/channels/<channel>/`。因此官方版和 integration 版可同时运行，彼此不会
 覆盖 `~/.jcode/builds/current` 或 shared daemon。
 
