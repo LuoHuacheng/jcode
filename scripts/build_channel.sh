@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/build_channel.sh <official|local|integration> <build|run|path> [-- args...]
+Usage: scripts/build_channel.sh <official|local> <build|run|path> [-- args...]
 
 Each channel uses one source checkout and isolated runtime artifacts:
   ~/.jcode/channels/<channel>/home    runtime state, sessions, server data
@@ -29,7 +29,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$channel" in
   local) branch="main" ;;
   official) branch="official/master" ;;
-  integration) branch="integration/master" ;;
   *) echo "error: unsupported channel: $channel" >&2; usage >&2; exit 2 ;;
 esac
 
