@@ -30,8 +30,9 @@ scripts/sync_upstream.sh --dry-run
 scripts/sync_upstream.sh
 ```
 
-同步顺序：fetch `upstream master`，快进 `official/master`，再把它 merge 到
-`integration/master`。不会改动当前工作树或 `local/main`。
+同步顺序：fetch `upstream master`，把已提交的当前 `main` 快进到 `local/main`，
+快进 `official/master`，再依次 merge local 和官方代码到 `integration/master`。
+未提交文件不会进入 integration。
 
 若发生冲突，只有 `../jcode-integration` 进入冲突状态。到该目录解决、`git add`、
 `git commit` 后再继续。不要在 `jcode-official` 写本地定制。
@@ -68,7 +69,8 @@ scripts/build_channel.sh integration path
 
 ## 日常规则
 
-1. 本地功能只在当前 `main` 开发并提交，再推送 `origin/main`。
+1. 本地功能只在当前 `main` 开发并提交，再推送 `origin/main`。同步脚本会将已提交
+   的 `main` 更新到 `local/main`。
 2. 官方版本只在 `jcode-official` 构建、回归或对比。
 3. 日常 selfdev 从 `integration` build/run。
 4. 先执行同步 dry-run。合并前保证 official 与 integration 工作树干净。

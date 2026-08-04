@@ -6,10 +6,10 @@ usage() {
   cat <<'EOF'
 Usage: scripts/sync_upstream.sh [--base-dir DIR] [--dry-run]
 
-Fetches upstream/master, fast-forwards official/master in jcode-official, then
-merges official/master into integration/master in jcode-integration. It never
-changes local/main or current development worktree. Conflicts stop the merge
-in integration worktree for manual resolution.
+Fetches upstream/master, advances local/main to committed main, fast-forwards
+official/master in jcode-official, then merges both into integration/master in
+jcode-integration. Uncommitted files are never included. Conflicts stop the
+merge in integration worktree for manual resolution.
 EOF
 }
 
@@ -49,6 +49,9 @@ done
 [[ "$(git -C "$integration_dir" branch --show-current)" == 'integration/master' ]] || {
   echo "error: $integration_dir must check out integration/master" >&2; exit 1;
 }
+[[ "$(git -C "$repo_root" branch --show-current)" == 'main' ]] || {
+  echo "error: $repo_root must check out main to update local/main" >&2; exit 1;
+}
 
 for path in "$official_dir" "$integration_dir"; do
   if [[ -n "$(git -C "$path" status --porcelain)" ]]; then
@@ -58,16 +61,32 @@ for path in "$official_dir" "$integration_dir"; do
   fi
 done
 
-run git -C "$repo_root" fetch upstream master
-run git -C "$official_dir" merge --ff-only upstream/master
-
 if [[ "$dry_run" -eq 1 ]]; then
+  echo
+  echo 'Would fetch upstream/master, advance local/main to main, fast-forward official/master, then merge:'
+  echo 'Local commits that would be merged:'
+  git -C "$integration_dir" log --oneline HEAD..main
   echo
   echo 'Integration commits that would be merged:'
   git -C "$integration_dir" log --oneline HEAD..official/master
   echo
-  echo 'Dry run makes no Git changes. Re-run without --dry-run to merge.'
+  echo 'Dry run makes no Git changes or network requests. Re-run without --dry-run to sync.'
   exit 0
+fi
+
+run git -C "$repo_root" fetch upstream master
+run git -C "$repo_root" branch -f local/main main
+run git -C "$official_dir" merge --ff-only upstream/master
+
+if ! git -C "$integration_dir" merge --no-ff local/main -m 'Merge local/main into integration/master'; then
+  cat <<EOF
+
+Local merge conflict left only in: $integration_dir
+Resolve there, then run:
+  git -C "$integration_dir" add <resolved-files>
+  git -C "$integration_dir" commit
+EOF
+  exit 1
 fi
 
 if ! git -C "$integration_dir" merge --no-ff official/master -m 'Merge upstream/master into integration/master'; then
