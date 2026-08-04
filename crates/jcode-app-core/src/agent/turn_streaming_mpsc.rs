@@ -81,6 +81,9 @@ impl Agent {
         event_tx: mpsc::UnboundedSender<ServerEvent>,
     ) -> Result<()> {
         self.set_log_context();
+        // A session is present only while it has work in flight. The guard
+        // releases the shared-server PID marker on every completion path.
+        let _active_turn_guard = crate::session::ActiveTurnGuard::new(self.session.id.clone());
         // Mark this session as actively streaming for presence UIs (e.g. the
         // macOS menu bar indicator). Cleared automatically on every exit path.
         let _streaming_guard = crate::session::StreamingGuard::new(self.session.id.clone());

@@ -19,6 +19,27 @@ pub struct StreamingGuard {
     sleep_assertion: crate::platform::PowerAssertion,
 }
 
+/// RAII guard that registers a session as active only while it is executing a
+/// model turn. This prevents long-lived server processes from keeping idle
+/// sessions in the active-PID registry after a response completes.
+pub struct ActiveTurnGuard {
+    session_id: String,
+}
+
+impl ActiveTurnGuard {
+    pub fn new(session_id: impl Into<String>) -> Self {
+        let session_id = session_id.into();
+        register_active_pid(&session_id, std::process::id());
+        Self { session_id }
+    }
+}
+
+impl Drop for ActiveTurnGuard {
+    fn drop(&mut self) {
+        crate::storage::release_active_pid(&self.session_id);
+    }
+}
+
 impl StreamingGuard {
     pub fn new(session_id: impl Into<String>) -> Self {
         Self {

@@ -16,6 +16,9 @@ impl Agent {
 
     pub(super) async fn run_turn(&mut self, print_output: bool) -> Result<String> {
         self.set_log_context();
+        // A session is present only while it has work in flight. The guard
+        // releases the shared-server PID marker on every completion path.
+        let _active_turn_guard = crate::session::ActiveTurnGuard::new(self.session.id.clone());
         crate::session_metrics::record_turn(&self.session.id);
         // Mark this session as actively streaming for presence UIs (e.g. the
         // macOS menu bar indicator). Cleared automatically on every exit path.

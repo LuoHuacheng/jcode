@@ -2270,6 +2270,27 @@ fn streaming_guard_creates_visible_macos_sleep_assertion() {
     );
 }
 
+#[test]
+fn active_turn_guard_releases_presence_when_turn_finishes() {
+    let _guard = crate::storage::lock_test_env();
+    let previous_home = std::env::var_os("JCODE_HOME");
+    let temp = tempfile::tempdir().expect("create temporary JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let session_id = "session_turn_presence";
+    {
+        let _active_turn = ActiveTurnGuard::new(session_id);
+        assert!(active_session_ids().contains(&session_id.to_string()));
+    }
+    assert!(!active_session_ids().contains(&session_id.to_string()));
+
+    if let Some(previous_home) = previous_home {
+        crate::env::set_var("JCODE_HOME", previous_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
 /// Issue #432: `/rewind N` must interpret N against the same numbered list the
 /// TUI shows, even in tool-heavy sessions where stored user-role tool-result
 /// messages vastly outnumber real prompts.

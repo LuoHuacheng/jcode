@@ -59,12 +59,20 @@ pub fn register_active_pid(session_id: &str, pid: u32) {
 
 /// Remove the active-PID record for `session_id`, if present.
 pub fn unregister_active_pid(session_id: &str) {
-    if let Some(dir) = active_pids_dir() {
-        let _ = std::fs::remove_file(dir.join(session_id));
-    }
+    release_active_pid(session_id);
     // A closed session is never streaming, and its internal flag is moot.
     unmark_streaming(session_id);
     set_session_internal(session_id, false);
+}
+
+/// Release the live active-PID record while preserving session classification.
+///
+/// Used when a model turn completes but its session remains resumable. Unlike
+/// [`unregister_active_pid`], this does not clear streaming or internal markers.
+pub fn release_active_pid(session_id: &str) {
+    if let Some(dir) = active_pids_dir() {
+        let _ = std::fs::remove_file(dir.join(session_id));
+    }
 }
 
 /// Mark a session as actively streaming a model response.
