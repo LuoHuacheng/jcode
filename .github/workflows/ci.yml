@@ -26,6 +26,9 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
+        # Forks and public-only builds do not define DEPLOY_KEY. The ssh-agent
+        # action rejects an empty key before Cargo can use public dependencies.
+        if: secrets.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
@@ -175,6 +178,7 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
+        if: secrets.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
@@ -413,6 +417,7 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
+        if: secrets.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
@@ -666,6 +671,7 @@ jobs:
           submodules: recursive
 
       - name: Configure SSH for cargo git dependencies
+        if: secrets.DEPLOY_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
