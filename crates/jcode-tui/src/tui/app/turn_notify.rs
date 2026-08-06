@@ -99,7 +99,7 @@ impl App {
 ///
 /// On macOS, a notification emitted by `osascript` belongs to the helper
 /// process, so clicking it cannot identify, much less focus, the terminal pane
-/// that owns this session. Kitty, iTerm, and Ghostty notifications retain that origin and
+/// that owns this session. Kitty and iTerm notifications retain that origin and
 /// Notification Center consequently takes the user back to the exact window
 /// and pane that emitted them.
 #[cfg(target_os = "macos")]
@@ -111,9 +111,7 @@ fn send_originating_terminal_notification(
     let term = std::env::var("TERM").unwrap_or_default();
     let sequence = if term_program.eq_ignore_ascii_case("kitty") || term == "xterm-kitty" {
         kitty_notification_sequence(notification, session_id)
-    } else if term_program.eq_ignore_ascii_case("iTerm.app")
-        || term_program.eq_ignore_ascii_case("ghostty")
-    {
+    } else if term_program.eq_ignore_ascii_case("iTerm.app") {
         iterm_notification_sequence(notification)
     } else {
         return false;
