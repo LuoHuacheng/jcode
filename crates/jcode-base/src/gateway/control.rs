@@ -13,8 +13,6 @@ use super::{DeviceRegistry, resolve_connect_host};
 /// Parsed `/remote` invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteCommand {
-    /// Activate or manage the subscription-backed Jcode Cloud host.
-    Cloud,
     /// Show gateway state, dial address, and paired devices.
     Status,
     /// Enable the gateway in config.
@@ -41,12 +39,11 @@ pub fn parse_remote_command(input: &str) -> Option<Result<RemoteCommand, String>
 
     let mut parts = rest.split_whitespace();
     let Some(sub) = parts.next() else {
-        return Some(Ok(RemoteCommand::Cloud));
+        return Some(Ok(RemoteCommand::Status));
     };
 
     let command = match sub.to_ascii_lowercase().as_str() {
-        "cloud" | "setup" => RemoteCommand::Cloud,
-        "status" | "local" => RemoteCommand::Status,
+        "status" => RemoteCommand::Status,
         "on" | "enable" => RemoteCommand::On,
         "off" | "disable" => RemoteCommand::Off,
         "pair" => RemoteCommand::Pair,
@@ -60,7 +57,7 @@ pub fn parse_remote_command(input: &str) -> Option<Result<RemoteCommand, String>
         }
         other => {
             return Some(Err(format!(
-                "Unknown /remote subcommand: {other}\nUsage: /remote [cloud|status|on|off|pair|revoke <device>]"
+                "Unknown /remote subcommand: {other}\nUsage: /remote [status|on|off|pair|revoke <device>]"
             )));
         }
     };
@@ -68,7 +65,7 @@ pub fn parse_remote_command(input: &str) -> Option<Result<RemoteCommand, String>
     // Only `revoke` takes an argument.
     if !matches!(command, RemoteCommand::Revoke(_)) && parts.next().is_some() {
         return Some(Err(format!(
-            "/remote {sub} takes no arguments\nUsage: /remote [cloud|status|on|off|pair|revoke <device>]"
+            "/remote {sub} takes no arguments\nUsage: /remote [status|on|off|pair|revoke <device>]"
         )));
     }
 
@@ -307,14 +304,14 @@ mod tests {
     }
 
     #[test]
-    fn bare_remote_starts_cloud_activation() {
+    fn bare_remote_shows_status() {
         assert_eq!(
             parse_remote_command("/remote"),
-            Some(Ok(RemoteCommand::Cloud))
+            Some(Ok(RemoteCommand::Status))
         );
         assert_eq!(
             parse_remote_command("  /remote  "),
-            Some(Ok(RemoteCommand::Cloud))
+            Some(Ok(RemoteCommand::Status))
         );
     }
 
@@ -322,9 +319,6 @@ mod tests {
     fn subcommands_and_aliases_parse() {
         for (input, expected) in [
             ("/remote status", RemoteCommand::Status),
-            ("/remote cloud", RemoteCommand::Cloud),
-            ("/remote setup", RemoteCommand::Cloud),
-            ("/remote local", RemoteCommand::Status),
             ("/remote on", RemoteCommand::On),
             ("/remote enable", RemoteCommand::On),
             ("/remote off", RemoteCommand::Off),

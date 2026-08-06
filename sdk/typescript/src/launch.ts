@@ -17,7 +17,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { HarnessError } from "./errors.js";
-import { bundledJcodeBinary, platformBinaryPackage } from "./binary.js";
 
 /**
  * Files inherited from the user's jcode home when logins are inherited.
@@ -168,7 +167,7 @@ export interface LaunchOptions {
    * supply credentials yourself.
    */
   inheritLogins?: boolean;
-  /** Path to the jcode binary. Defaults to the npm-bundled runtime, then `jcode` on PATH. */
+  /** Path to the jcode binary. Defaults to `jcode` on PATH. */
   binary?: string;
   /** Extra environment variables for the instance. */
   env?: Record<string, string>;
@@ -480,7 +479,6 @@ function removeInstanceHome(home: string): void {
  * connections.
  */
 export async function launchInstance(options: LaunchOptions = {}): Promise<LaunchedInstance> {
-  const binary = options.binary ?? bundledJcodeBinary() ?? "jcode";
   const ephemeral = options.jcodeHome === undefined;
   const jcodeHome =
     options.jcodeHome ??
@@ -514,7 +512,7 @@ export async function launchInstance(options: LaunchOptions = {}): Promise<Launc
   }
 
   const child = spawn(
-    binary,
+    options.binary ?? "jcode",
     ["api-bridge", "--api-socket", socketPath],
     {
       cwd: options.workingDir ?? process.cwd(),
@@ -574,7 +572,7 @@ export async function launchInstance(options: LaunchOptions = {}): Promise<Launc
     // daemon starts shutting down, so doing this after the bridge dies races
     // a window where `server stop` reports "no running server found" and the
     // daemon is simply leaked.
-    await stopInstanceDaemon(binary, jcodeHome, runtimeDir);
+    await stopInstanceDaemon(options.binary ?? "jcode", jcodeHome, runtimeDir);
 
     if (exited === undefined) {
       child.kill("SIGTERM");
@@ -668,16 +666,12 @@ export async function launchInstance(options: LaunchOptions = {}): Promise<Launc
     if (spawnError) {
       process.removeListener("exit", reapOnExit);
       await shutdown();
-      const binaryName = binary;
-      const platformPackage = platformBinaryPackage();
+      const binaryName = options.binary ?? "jcode";
       throw new HarnessError(
         "jcode_not_found",
         spawnError.code === "ENOENT"
           ? `could not run \`${binaryName}\`: jcode is not installed, or not on PATH. ` +
-            (platformPackage
-              ? `The bundled runtime package (${platformPackage}) is missing. Reinstall without ` +
-                "--omit=optional, install jcode from https://jcode.sh, or pass `binary` with its full path."
-              : "Install jcode from https://jcode.sh, or pass `binary` with its full path.")
+            "Install it from https://jcode.sh, or pass `binary` with its full path."
           : `could not run \`${binaryName}\`: ${spawnError.message}`,
       );
     }

@@ -451,7 +451,6 @@ pub fn parse_markdown(text: &str) -> Document {
                     }
                     spans.push(StyledSpan {
                         text: t.to_string(),
-                        latex: None,
                         role: style.role(),
                         fill: FillRole::None,
                         attrs: style.attrs(),
@@ -467,7 +466,6 @@ pub fn parse_markdown(text: &str) -> Document {
                     }
                     spans.push(StyledSpan {
                         text: t.to_string(),
-                        latex: None,
                         role: StyleRole::Code,
                         fill: FillRole::Code,
                         attrs: TextAttrs::none(),
@@ -483,7 +481,6 @@ pub fn parse_markdown(text: &str) -> Document {
                     }
                     spans.push(StyledSpan {
                         text: crate::math::render_inline_latex(&math),
-                        latex: Some(math.to_string()),
                         role: StyleRole::Math,
                         fill: FillRole::None,
                         attrs: TextAttrs::none(),
@@ -562,7 +559,6 @@ pub fn parse_markdown(text: &str) -> Document {
                 } else {
                     spans.push(StyledSpan {
                         text: raw.to_string(),
-                        latex: None,
                         role: StyleRole::Html,
                         fill: FillRole::None,
                         attrs: TextAttrs {
@@ -658,7 +654,6 @@ pub fn parse_markdown(text: &str) -> Document {
                     .map(|l| {
                         StyledLine::from_spans(vec![StyledSpan {
                             text: l.to_string(),
-                            latex: None,
                             role: StyleRole::Code,
                             fill: FillRole::Code,
                             attrs: TextAttrs::none(),

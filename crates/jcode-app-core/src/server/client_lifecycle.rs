@@ -99,13 +99,6 @@ fn initial_subscribe_working_dir(request: &Request) -> std::result::Result<Strin
     }
 }
 
-fn initial_subscribe_terminal_env(request: &Request) -> Vec<(String, String)> {
-    match request {
-        Request::Subscribe { terminal_env, .. } => terminal_env.clone(),
-        _ => Vec::new(),
-    }
-}
-
 struct ProcessingMessage {
     id: u64,
     content: String,
@@ -475,7 +468,6 @@ pub(super) async fn handle_client(
             return Ok(());
         }
     };
-    let mut active_terminal_env = initial_subscribe_terminal_env(&initial_request);
 
     // Per-client state
     let mut client_is_processing = false;
@@ -501,15 +493,11 @@ pub(super) async fn handle_client(
 
     // Create a new session for this client
     let t0 = std::time::Instant::now();
-    let mut new_agent =
-        crate::hooks::with_client_terminal_env(active_terminal_env.clone(), async {
-            Agent::new_with_initial_working_dir(
-                Arc::clone(&provider),
-                registry.clone(),
-                Some(&initial_working_dir),
-            )
-        })
-        .await;
+    let mut new_agent = Agent::new_with_initial_working_dir(
+        Arc::clone(&provider),
+        registry.clone(),
+        Some(&initial_working_dir),
+    );
     let agent_new_ms = t0.elapsed().as_millis();
 
     new_agent.set_memory_enabled(crate::config::config().features.memory);
@@ -1144,7 +1132,6 @@ pub(super) async fn handle_client(
                     &agent,
                     &client_event_tx,
                     &processing_done_tx,
-                    active_terminal_env.clone(),
                     &SwarmStatusRefs {
                         members: &swarm_members,
                         swarms_by_id: &swarms_by_id,
@@ -1222,31 +1209,28 @@ pub(super) async fn handle_client(
                 ) {
                     continue;
                 }
-                crate::hooks::with_client_terminal_env(
-                    active_terminal_env.clone(),
-                    handle_clear_session(
-                        id,
-                        client_selfdev,
-                        &mut client_session_id,
-                        &client_connection_id,
-                        &agent,
-                        &provider,
-                        &registry,
-                        &sessions,
-                        &shutdown_signals,
-                        &soft_interrupt_queues,
-                        &client_connections,
-                        &swarm_members,
-                        &swarms_by_id,
-                        &file_touch,
-                        &channel_subscriptions,
-                        &channel_subscriptions_by_session,
-                        &swarm_plans,
-                        &event_history,
-                        &event_counter,
-                        &swarm_event_tx,
-                        &client_event_tx,
-                    ),
+                handle_clear_session(
+                    id,
+                    client_selfdev,
+                    &mut client_session_id,
+                    &client_connection_id,
+                    &agent,
+                    &provider,
+                    &registry,
+                    &sessions,
+                    &shutdown_signals,
+                    &soft_interrupt_queues,
+                    &client_connections,
+                    &swarm_members,
+                    &swarms_by_id,
+                    &file_touch,
+                    &channel_subscriptions,
+                    &channel_subscriptions_by_session,
+                    &swarm_plans,
+                    &event_history,
+                    &event_counter,
+                    &swarm_event_tx,
+                    &client_event_tx,
                 )
                 .await;
                 session_control = refresh_session_control_handle(
@@ -1434,47 +1418,43 @@ pub(super) async fn handle_client(
                         }
                     }
                 }
-                active_terminal_env = terminal_env.clone();
                 if let Some(target_session_id) = target_session_id {
                     if crate::session::session_exists(&target_session_id) {
                         let pre_resume_session_id = client_session_id.clone();
-                        agent = crate::hooks::with_client_terminal_env(
-                            active_terminal_env.clone(),
-                            handle_resume_session(
-                                id,
-                                target_session_id.clone(),
-                                subscribe_working_dir.as_deref(),
-                                client_instance_id.as_deref(),
-                                client_has_local_history,
-                                allow_session_takeover,
-                                &mut client_selfdev,
-                                &mut client_session_id,
-                                &client_connection_id,
-                                &agent,
-                                &provider,
-                                &registry,
-                                &sessions,
-                                &shutdown_signals,
-                                &soft_interrupt_queues,
-                                &client_connections,
-                                &client_debug_state,
-                                &swarm_members,
-                                &swarms_by_id,
-                                &file_touch,
-                                &channel_subscriptions,
-                                &channel_subscriptions_by_session,
-                                &swarm_plans,
-                                &swarm_coordinators,
-                                &client_count,
-                                &writer,
-                                &server_name,
-                                &server_icon,
-                                &client_event_tx,
-                                &mcp_pool,
-                                &event_history,
-                                &event_counter,
-                                &swarm_event_tx,
-                            ),
+                        agent = handle_resume_session(
+                            id,
+                            target_session_id.clone(),
+                            subscribe_working_dir.as_deref(),
+                            client_instance_id.as_deref(),
+                            client_has_local_history,
+                            allow_session_takeover,
+                            &mut client_selfdev,
+                            &mut client_session_id,
+                            &client_connection_id,
+                            &agent,
+                            &provider,
+                            &registry,
+                            &sessions,
+                            &shutdown_signals,
+                            &soft_interrupt_queues,
+                            &client_connections,
+                            &client_debug_state,
+                            &swarm_members,
+                            &swarms_by_id,
+                            &file_touch,
+                            &channel_subscriptions,
+                            &channel_subscriptions_by_session,
+                            &swarm_plans,
+                            &swarm_coordinators,
+                            &client_count,
+                            &writer,
+                            &server_name,
+                            &server_icon,
+                            &client_event_tx,
+                            &mcp_pool,
+                            &event_history,
+                            &event_counter,
+                            &swarm_event_tx,
                         )
                         .await?;
                         session_control = refresh_session_control_handle(
@@ -1679,43 +1659,40 @@ pub(super) async fn handle_client(
                         info.client_instance_id = client_instance_id.clone();
                     }
                 }
-                agent = crate::hooks::with_client_terminal_env(
-                    active_terminal_env.clone(),
-                    handle_resume_session(
-                        id,
-                        session_id,
-                        resume_working_dir.as_deref(),
-                        client_instance_id.as_deref(),
-                        client_has_local_history,
-                        allow_session_takeover,
-                        &mut client_selfdev,
-                        &mut client_session_id,
-                        &client_connection_id,
-                        &agent,
-                        &provider,
-                        &registry,
-                        &sessions,
-                        &shutdown_signals,
-                        &soft_interrupt_queues,
-                        &client_connections,
-                        &client_debug_state,
-                        &swarm_members,
-                        &swarms_by_id,
-                        &file_touch,
-                        &channel_subscriptions,
-                        &channel_subscriptions_by_session,
-                        &swarm_plans,
-                        &swarm_coordinators,
-                        &client_count,
-                        &writer,
-                        &server_name,
-                        &server_icon,
-                        &client_event_tx,
-                        &mcp_pool,
-                        &event_history,
-                        &event_counter,
-                        &swarm_event_tx,
-                    ),
+                agent = handle_resume_session(
+                    id,
+                    session_id,
+                    resume_working_dir.as_deref(),
+                    client_instance_id.as_deref(),
+                    client_has_local_history,
+                    allow_session_takeover,
+                    &mut client_selfdev,
+                    &mut client_session_id,
+                    &client_connection_id,
+                    &agent,
+                    &provider,
+                    &registry,
+                    &sessions,
+                    &shutdown_signals,
+                    &soft_interrupt_queues,
+                    &client_connections,
+                    &client_debug_state,
+                    &swarm_members,
+                    &swarms_by_id,
+                    &file_touch,
+                    &channel_subscriptions,
+                    &channel_subscriptions_by_session,
+                    &swarm_plans,
+                    &swarm_coordinators,
+                    &client_count,
+                    &writer,
+                    &server_name,
+                    &server_icon,
+                    &client_event_tx,
+                    &mcp_pool,
+                    &event_history,
+                    &event_counter,
+                    &swarm_event_tx,
                 )
                 .await?;
                 session_control = refresh_session_control_handle(
@@ -2776,31 +2753,28 @@ pub(super) async fn handle_client(
         }
     }
 
-    crate::hooks::with_client_terminal_env(
-        active_terminal_env,
-        cleanup_client_connection(
-            &sessions,
-            &client_session_id,
-            client_is_processing,
-            &mut processing_task,
-            event_handle,
-            &swarm_members,
-            &swarms_by_id,
-            &swarm_coordinators,
-            &swarm_plans,
-            &file_touch,
-            &channel_subscriptions,
-            &channel_subscriptions_by_session,
-            &client_debug_state,
-            &client_debug_id,
-            &client_connections,
-            &client_connection_id,
-            &shutdown_signals,
-            &soft_interrupt_queues,
-            &event_history,
-            &event_counter,
-            &swarm_event_tx,
-        ),
+    cleanup_client_connection(
+        &sessions,
+        &client_session_id,
+        client_is_processing,
+        &mut processing_task,
+        event_handle,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &file_touch,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &client_debug_state,
+        &client_debug_id,
+        &client_connections,
+        &client_connection_id,
+        &shutdown_signals,
+        &soft_interrupt_queues,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
     )
     .await?;
     Ok(())
@@ -2844,7 +2818,6 @@ async fn start_processing_message(
     agent: &Arc<Mutex<Agent>>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     processing_done_tx: &mpsc::UnboundedSender<(u64, Result<()>, Option<String>)>,
-    client_terminal_env: Vec<(String, String)>,
     swarm: &SwarmStatusRefs<'_>,
 ) {
     let ProcessingMessage {
@@ -2915,9 +2888,12 @@ async fn start_processing_message(
     crate::logging::info(&format!("Processing message id={} spawning task", id));
     *state.task = Some(tokio::spawn(async move {
         let event_tx = tx.clone();
-        let result = match std::panic::AssertUnwindSafe(crate::hooks::with_client_terminal_env(
-            client_terminal_env,
-            process_message_streaming_mpsc(agent, &content, images, system_reminder, event_tx),
+        let result = match std::panic::AssertUnwindSafe(process_message_streaming_mpsc(
+            agent,
+            &content,
+            images,
+            system_reminder,
+            event_tx,
         ))
         .catch_unwind()
         .await
