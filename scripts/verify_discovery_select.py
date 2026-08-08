@@ -7,7 +7,9 @@ live endpoint:
 
 - browse lists entries and never leaks setup instructions;
 - browse names `select` as the next step;
-- select returns the setup instructions that browse withheld.
+- catalog select returns the setup instructions that browse withheld;
+- off-catalog select records the exact chosen product without returning provider
+  information or setup instructions.
 
 Usage: python scripts/verify_discovery_select.py [path/to/jcode]
 """
@@ -40,6 +42,8 @@ TOOLS = [
     },
 ]
 
+OFF_CATALOG_TOOL = "demo-other"
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
@@ -47,7 +51,13 @@ class Handler(BaseHTTPRequestHandler):
         selected = query.get("tool", [None])[0]
         if selected:
             match = next((tool for tool in TOOLS if tool["name"] == selected), None)
-            payload = {"tool": match} if match else {"tool": None}
+            payload = {
+                "category": "payments",
+                "selected_tool": selected,
+                "listed": match is not None,
+            }
+            if match is not None:
+                payload["tool"] = match
         else:
             payload = {"tools": TOOLS}
         body = json.dumps(payload).encode()
@@ -61,7 +71,9 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def run_tool(jcode: str, socket: Path, session: str, payload: dict, env: dict) -> str:
+def run_tool(
+    jcode: str, socket: Path, session: str, payload: dict, env: dict, expect_error: bool = False
+) -> str:
     result = subprocess.run(
         [
             jcode,
@@ -78,9 +90,14 @@ def run_tool(jcode: str, socket: Path, session: str, payload: dict, env: dict) -
         env=env,
         timeout=60,
     )
-    if result.returncode != 0:
+    if result.returncode != 0 and not expect_error:
         raise SystemExit(f"tool call failed: {result.stderr or result.stdout}")
-    return str(json.loads(result.stdout)["output"])
+    try:
+        return str(json.loads(result.stdout)["output"])
+    except (json.JSONDecodeError, KeyError):
+        if expect_error:
+            return result.stdout + result.stderr
+        raise SystemExit(f"unparseable tool response: {result.stdout or result.stderr}")
 
 
 def main() -> int:
@@ -139,6 +156,7 @@ def main() -> int:
             browse = run_tool(
                 jcode, socket, session,
                 {
+                    "action": "search",
                     "category": "payments",
                     "query": "virtual card capability for agent initiated online purchases",
                     "reason": "The task needs a spending-limited payment method and no current tool provides one.",
@@ -169,6 +187,28 @@ def main() -> int:
             print(select)
             if "demo-cards-mcp@2.1.0" not in select:
                 failures.append("select did not return the withheld setup instructions")
+
+            off_catalog = run_tool(
+                jcode, socket, session,
+                {
+                    "action": "select",
+                    "category": "payments",
+                    "tool": OFF_CATALOG_TOOL,
+                    "query": "virtual card capability for agent initiated online purchases",
+                    "reason": "The user explicitly chose this other product after comparing the available options.",
+                },
+                env,
+            )
+            print("--- off-catalog select ---")
+            print(off_catalog)
+            if f"Selected off-catalog product '{OFF_CATALOG_TOOL}'" not in off_catalog:
+                failures.append("off-catalog select did not record the exact product")
+            if "Selection recorded as demand data" not in off_catalog:
+                failures.append("off-catalog select did not return a demand-data receipt")
+            if "no provider information" not in off_catalog:
+                failures.append("off-catalog select did not disclose the absence of provider data")
+            if "Setup:" in off_catalog or SETUP in off_catalog or "https://" in off_catalog:
+                failures.append("off-catalog select leaked provider or setup information")
         finally:
             subprocess.run(
                 [jcode, "--socket", str(socket), "server", "stop"],
@@ -182,7 +222,10 @@ def main() -> int:
         for failure in failures:
             print(f"  - {failure}")
         return 1
-    print("\nOK: browse withholds setup, names select, and select delivers it.")
+    print(
+        "\nOK: browse withholds setup and names select; catalog select returns setup; "
+        "off-catalog select records demand without provider or setup information."
+    )
     return 0
 
 

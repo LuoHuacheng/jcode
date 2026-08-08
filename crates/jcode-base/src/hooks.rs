@@ -23,6 +23,7 @@
 
 use std::path::PathBuf;
 
+
 /// Maximum bytes of JSON payload exported via `JCODE_HOOK_PAYLOAD`.
 const PAYLOAD_ENV_LIMIT: usize = 16 * 1024;
 /// Maximum bytes of tool input JSON exported to the pre_tool gate.
@@ -424,6 +425,60 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn pre_tool_gate_runs_every_configured_command_and_preserves_first_block() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let first_marker = temp.path().join("first-ran.txt");
+        let final_marker = temp.path().join("final-ran.txt");
+        let allow = write_executable_script(
+            temp.path(),
+            "first-allow.sh",
+            &format!(
+                "#!/bin/sh\nprintf ran > {}\nexit 0\n",
+                crate::terminal_launch::sh_escape(&first_marker.to_string_lossy())
+            ),
+        );
+        let block = write_executable_script(
+            temp.path(),
+            "second-block.sh",
+            "#!/bin/sh\necho 'blocked by second policy' >&2\nexit 2\n",
+        );
+        let final_allow = write_executable_script(
+            temp.path(),
+            "third-allow.sh",
+            &format!(
+                "#!/bin/sh\nprintf ran > {}\nexit 0\n",
+                crate::terminal_launch::sh_escape(&final_marker.to_string_lossy())
+            ),
+        );
+        let commands = serde_json::to_string(&vec![
+            allow.to_string_lossy().into_owned(),
+            block.to_string_lossy().into_owned(),
+            final_allow.to_string_lossy().into_owned(),
+        ])
+        .expect("serialize hook command array");
+        let _env = gate_test_config(&commands, 5000);
+
+        let decision = run_pre_tool_gate("ses_multi", None, "bash", "{}").await;
+
+        assert_eq!(
+            decision,
+            GateDecision::Block {
+                reason: "blocked by second policy".to_string()
+            }
+        );
+        assert_eq!(
+            std::fs::read_to_string(first_marker).expect("first policy should execute"),
+            "ran"
+        );
+        assert_eq!(
+            std::fs::read_to_string(final_marker).expect("later policies should still execute"),
+            "ran"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn pre_tool_gate_fails_open_on_timeout_and_odd_exits() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::TempDir::new().expect("temp dir");
@@ -514,4 +569,5 @@ mod tests {
         }
         assert_eq!(recorded, "turn_end|ses_obs|ok|1");
     }
+
 }

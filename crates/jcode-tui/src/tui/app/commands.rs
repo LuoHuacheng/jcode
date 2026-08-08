@@ -112,6 +112,7 @@ pub(super) fn disable_auto_poke(app: &mut App) -> usize {
     app.auto_poke_default_on = false;
     app.todo_confidence_spike_challenged = false;
     app.todo_completion_gate_attempts = 0;
+    app.last_auto_poke_fingerprint = None;
     app.todo_gate_digest_delivered = false;
     cleared
 }
@@ -243,6 +244,7 @@ pub(super) fn activate_auto_poke(app: &mut App) -> PokeActivation {
     app.auto_poke_default_on = true;
     app.todo_confidence_spike_challenged = false;
     app.todo_completion_gate_attempts = 0;
+    app.last_auto_poke_fingerprint = None;
     // Re-arming starts a fresh review cycle, so the deferred quality digest is
     // eligible to be delivered again for the upcoming work.
     app.todo_gate_digest_delivered = false;
@@ -834,6 +836,7 @@ pub(super) fn handle_cancel_command(app: &mut App, trimmed: &str) -> bool {
         return false;
     }
 
+    let pending_retry = app.rate_limit_reset.is_some() && app.rate_limit_pending_message.is_some();
     if app.is_processing {
         app.cancel_requested = true;
         app.interleave_message = None;
@@ -845,6 +848,13 @@ pub(super) fn handle_cancel_command(app: &mut App, trimmed: &str) -> bool {
         } else {
             app.set_status_notice("Interrupting...");
         }
+    } else if pending_retry {
+        app.clear_pending_remote_retry();
+        if matches!(app.status, ProcessingStatus::WaitingForNetwork { .. }) {
+            app.status = ProcessingStatus::Idle;
+            app.status_detail = None;
+        }
+        app.set_status_notice("Pending retry cancelled");
     } else {
         app.push_display_message(DisplayMessage::system(
             "Nothing to cancel: no prompt or operation is in progress.".to_string(),

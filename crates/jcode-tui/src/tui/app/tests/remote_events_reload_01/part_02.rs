@@ -151,6 +151,20 @@ fn test_remote_auto_poke_challenges_abrupt_confidence_increase() {
             }],
         )
         .expect("save todos");
+
+        crate::todo::save_goals(
+            &app.session.id,
+            &[crate::todo::TodoGoal {
+                delivery_state: Some(crate::todo::DeliveryState::WorkflowValidated),
+                autonomy: Some(crate::todo::Autonomy::NecessaryFollowthrough),
+                iteration_maturity: Some(crate::todo::IterationMaturity::OutcomeReached),
+                feedback_loop_relevance: Some(crate::todo::FeedbackLoopRelevance::Representative),
+                feedback_loop_coverage: Some(crate::todo::FeedbackLoopCoverage::MainPaths),
+                feedback_loop_traceability: Some(crate::todo::FeedbackLoopTraceability::Complete),
+                ..Default::default()
+            }],
+        )
+        .expect("save passing goal");
         app.is_remote = true;
         app.auto_poke_incomplete_todos = true;
         app.is_processing = true;
@@ -198,6 +212,20 @@ fn test_remote_auto_poke_completion_below_threshold_tells_model_to_keep_working(
             }],
         )
         .expect("save todos");
+
+        crate::todo::save_goals(
+            &app.session.id,
+            &[crate::todo::TodoGoal {
+                delivery_state: Some(crate::todo::DeliveryState::WorkflowValidated),
+                autonomy: Some(crate::todo::Autonomy::NecessaryFollowthrough),
+                iteration_maturity: Some(crate::todo::IterationMaturity::OutcomeReached),
+                feedback_loop_relevance: Some(crate::todo::FeedbackLoopRelevance::Representative),
+                feedback_loop_coverage: Some(crate::todo::FeedbackLoopCoverage::MainPaths),
+                feedback_loop_traceability: Some(crate::todo::FeedbackLoopTraceability::Complete),
+                ..Default::default()
+            }],
+        )
+        .expect("save passing goal");
         app.is_remote = true;
         app.auto_poke_incomplete_todos = true;
         app.is_processing = true;

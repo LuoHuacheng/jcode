@@ -1,6 +1,6 @@
 [package]
 name = "jcode"
-version = "0.67.0"
+version = "0.71.1"
 description = "Possibly the greatest coding agent ever built — blazing-fast TUI, multi-model, swarm coordination, 30+ tools"
 edition = "2024"
 autobins = false
@@ -279,6 +279,7 @@ objc2-app-kit = { version = "0.3", features = [
     "NSMenuItem",
     "NSRunningApplication",
 ] }
+objc2-user-notifications = "0.3"
 
 [profile.release]
 opt-level = 1

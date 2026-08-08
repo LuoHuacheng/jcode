@@ -274,6 +274,7 @@ fn hooks_config_defaults_and_parses_from_toml() {
     assert_eq!(cfg.hooks.turn_end.as_deref(), Some("notify-turn"));
     assert_eq!(cfg.hooks.pre_tool.as_deref(), Some("~/bin/policy"));
     assert_eq!(cfg.hooks.pre_tool_timeout_ms, 1500);
+
 }
 
 #[test]
@@ -295,6 +296,7 @@ fn test_env_override_lifecycle_hooks() {
     cfg.hooks.turn_end = Some("from-config".to_string());
     cfg.apply_env_overrides();
     assert_eq!(cfg.hooks.turn_end, None);
+
 
     restore_env_var("JCODE_HOOK_TURN_END", prev_turn_end);
     restore_env_var("JCODE_HOOK_PRE_TOOL_TIMEOUT_MS", prev_timeout);

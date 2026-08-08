@@ -8,6 +8,10 @@
 
 use super::App;
 use crate::todo::TodoItem;
+#[cfg(any(target_os = "macos", test))]
+use base64::Engine as _;
+#[cfg(target_os = "macos")]
+use std::io::Write;
 
 /// Maximum characters of assistant text shown in the notification body.
 /// Notification banners truncate aggressively; keep the payload tight.
@@ -71,6 +75,18 @@ impl App {
             &notification.body,
             sound,
         );
+        if !send_originating_terminal_notification(
+            &notification,
+            self.active_client_session_id().unwrap_or("unknown"),
+            sound,
+        ) {
+            crate::notifications::send_desktop_notification_rich(
+                &notification.title,
+                notification.subtitle.as_deref(),
+                &notification.body,
+                sound,
+            );
+        }
     }
 
     fn runtime_mode_allows_turn_notifications(&self) -> bool {
@@ -85,6 +101,116 @@ impl App {
             .find(|m| m.role == "assistant" && !m.content.trim().is_empty())
             .map(|m| m.content.clone())
     }
+}
+
+/// Ask the terminal to create the notification when it has a native protocol.
+///
+/// On macOS, a notification emitted by `osascript` belongs to the helper
+/// process, so clicking it cannot identify, much less focus, the terminal pane
+/// that owns this session. Kitty retains that origin natively. The bundled
+/// broker records the controlling tty and uses it to return Terminal.app and
+/// iTerm2 users to the exact originating tab/session when one is exposed.
+#[cfg(target_os = "macos")]
+fn send_originating_terminal_notification(
+    notification: &TurnNotification,
+    session_id: &str,
+    sound: Option<&str>,
+) -> bool {
+    let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
+    let term = std::env::var("TERM").unwrap_or_default();
+    let is_kitty = term_program.eq_ignore_ascii_case("kitty") || term == "xterm-kitty";
+
+    // Kitty's OSC 99 path is strictly better than a generic helper because the
+    // terminal itself can focus the exact originating surface. All other macOS
+    // terminals use the LSUIElement broker when installed; it carries durable
+    // route metadata and can target Terminal.app/iTerm2 by tty on click.
+    if !is_kitty
+        && crate::notifications::send_macos_turn_notification(
+            &notification.title,
+            notification.subtitle.as_deref(),
+            &notification.body,
+            sound,
+        )
+    {
+        return true;
+    }
+
+    let sequence = if is_kitty {
+        kitty_notification_sequence(notification, session_id)
+    } else if term_program.eq_ignore_ascii_case("iTerm.app") {
+        iterm_notification_sequence(notification)
+    } else {
+        return false;
+    };
+
+    // This runs on the TUI event thread, after the completed turn has rendered,
+    // so one atomic write and flush cannot interleave with a frame draw.
+    let mut stdout = std::io::stdout().lock();
+    stdout.write_all(sequence.as_bytes()).is_ok() && stdout.flush().is_ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn send_originating_terminal_notification(
+    _notification: &TurnNotification,
+    _session_id: &str,
+    _sound: Option<&str>,
+) -> bool {
+    false
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn notification_text(notification: &TurnNotification) -> String {
+    match notification.subtitle.as_deref() {
+        Some(subtitle) => format!("{}\n{}", subtitle, notification.body),
+        None => notification.body.clone(),
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn osc_safe(text: &str) -> String {
+    text.chars().filter(|ch| !ch.is_control()).collect()
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn kitty_notification_id(session_id: &str) -> String {
+    let safe: String = session_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+' | '.'))
+        .take(128)
+        .collect();
+    format!(
+        "jcode-turn-{}",
+        if safe.is_empty() { "unknown" } else { &safe }
+    )
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn kitty_notification_sequence(notification: &TurnNotification, session_id: &str) -> String {
+    // OSC 99 is Kitty's desktop-notification protocol. Notifications are tied
+    // to the originating Kitty window, which is what makes click-to-focus work.
+    // Base64 is required because the body can contain a newline and OSC 99's
+    // unencoded form forbids every C0/C1 control character.
+    let encoder = base64::engine::general_purpose::STANDARD;
+    let title = encoder.encode(notification.title.as_bytes());
+    let body = encoder.encode(notification_text(notification).as_bytes());
+    let id = kitty_notification_id(session_id);
+    // Request focus explicitly instead of relying on Kitty's current default.
+    // This is the protocol guarantee that clicking the completed notification
+    // returns to the exact window that emitted it.
+    format!(
+        "\x1b]99;i={id}:d=0:e=1:p=title;{title}\x1b\\\x1b]99;i={id}:d=1:e=1:p=body:a=focus;{body}\x1b\\"
+    )
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn iterm_notification_sequence(notification: &TurnNotification) -> String {
+    // iTerm2's OSC 9 notification is likewise associated with its source tab.
+    let text = osc_safe(&format!(
+        "{}: {}",
+        notification.title,
+        notification_text(notification)
+    ));
+    format!("\x1b]9;{text}\x07")
 }
 
 fn load_session_todos(session_id: &str) -> Vec<TodoItem> {

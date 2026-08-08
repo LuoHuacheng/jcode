@@ -27,7 +27,14 @@ python scripts/test_benchmark_discovery_rate.py
 ```
 
 Reports land in `target/discovery-rate/latest.json`; use `--output` to keep
-named baselines.
+named baselines. Every non-list report fingerprints the exact executable before
+starting any trial. `config.executable` records the original command, resolved
+path, `--version` output, embedded commit, SHA-256, and size. The runner pins the
+resolved path for every trial so a symlink update cannot make later trials use a
+different binary than the one named by the artifact.
+This provenance contract is report schema version 2. Historical version 1
+artifacts predate executable fingerprinting and must not be used as evidence for
+which binary produced a result.
 
 ## The suite
 
@@ -208,6 +215,12 @@ local fake catalog, with no model credits and no live endpoint:
 python scripts/verify_discovery_select.py ./target/selfdev/jcode
 ```
 
+That script also covers off-catalog selects. The endpoint signals "no such
+entry" either with a 404 or with a 200 carrying an empty entry; both are
+reported to the agent as a distinct, actionable error naming `action=suggest`,
+rather than as a generic endpoint failure it might retry or route around. The
+same distinction is recorded in telemetry as
+`outcome=off_catalog_select` / `failure_reason=off_catalog_select`.
 The description change has not yet been confirmed by a matched live run. Every
 provider available during this work either exhausted its budget or throttled;
 the harness reports such trials as `invalid` rather than scoring them, so the

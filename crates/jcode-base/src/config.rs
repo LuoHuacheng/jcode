@@ -720,6 +720,7 @@ impl Default for DictationConfig {
     }
 }
 
+pub mod change_report;
 mod config_file;
 mod default_file;
 mod display_summary;
