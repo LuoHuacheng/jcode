@@ -468,6 +468,10 @@ pub(super) async fn handle_client(
             return Ok(());
         }
     };
+    let mut active_terminal_env = match &initial_request {
+        Request::Subscribe { terminal_env, .. } => terminal_env.clone(),
+        _ => Vec::new(),
+    };
 
     // Per-client state
     let mut client_is_processing = false;
