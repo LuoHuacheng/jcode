@@ -38,8 +38,16 @@ if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
   echo "error: repository is dirty; commit, stash, or discard changes before syncing." >&2
   exit 1
 fi
+git -C "$repo_root" remote get-url upstream >/dev/null 2>&1 || {
+  echo 'error: remote "upstream" is required (official repository).' >&2
+  exit 1
+}
 
 if [[ "$dry_run" -eq 1 ]]; then
+  git -C "$repo_root" show-ref --verify --quiet refs/heads/official/master || {
+    echo 'error: missing branch official/master; run scripts/setup_dual_track.sh first.' >&2
+    exit 1
+  }
   echo
   echo 'Would fetch upstream/master, fast-forward official/master, then merge it into main:'
   echo 'Official commits that would be merged:'
@@ -50,7 +58,18 @@ if [[ "$dry_run" -eq 1 ]]; then
 fi
 
 run git -C "$repo_root" fetch upstream master
-run git -C "$repo_root" branch -f official/master upstream/master
+
+original_branch=main
+restore_main() {
+  if [[ "$(git -C "$repo_root" branch --show-current)" != "$original_branch" ]]; then
+    git -C "$repo_root" switch "$original_branch"
+  fi
+}
+trap restore_main EXIT
+
+run git -C "$repo_root" switch official/master
+run git -C "$repo_root" merge --ff-only upstream/master
+run git -C "$repo_root" switch main
 
 if ! git -C "$repo_root" merge --no-ff official/master -m 'Merge official/master into main'; then
   cat <<EOF
@@ -62,5 +81,8 @@ Resolve, then run:
 EOF
   exit 1
 fi
+
+trap - EXIT
+restore_main
 
 echo "Synced upstream/master into main: $(git -C "$repo_root" rev-parse --short HEAD)"

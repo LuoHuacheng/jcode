@@ -17,6 +17,7 @@ git switch main
 ```
 
 `origin` 应为你的 fork，`upstream` 应为官方仓库。
+也可执行 `scripts/setup_dual_track.sh` 自动 fetch `upstream/master` 并建立或更新 `official/master`；脚本只操作当前 checkout，不创建 clone 或 worktree。
 
 ## 本地开发
 

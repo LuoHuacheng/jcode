@@ -12,8 +12,9 @@ Each channel uses one source checkout and isolated runtime artifacts:
   ~/.jcode/channels/<channel>/target  Cargo artifacts
   ~/.jcode/channels/<channel>/jcode.sock
 
-`build` temporarily switches to channel branch, compiles TUI binary, copies it
-into channel home, then restores original branch. Repository must be clean.
+`build` temporarily switches to channel branch, compiles the binary, copies it
+into the channel directory, then restores the original branch even when the
+build fails. Repository must be clean.
 `run` builds when needed, then executes `jcode run --no-update --socket
 <channel socket>` with any trailing arguments. `path` prints paths.
 EOF
@@ -49,29 +50,29 @@ print_paths() {
 }
 
 build() {
-  mkdir -p "$(dirname "$binary")" "$channel_home" "$runtime_dir" "$target_dir"
   [[ -z "$(git -C "$repo_root" status --porcelain)" ]] || {
     echo 'error: repository is dirty; commit, stash, or discard changes before building another branch.' >&2
     exit 1
   }
   original_branch="$(git -C "$repo_root" branch --show-current)"
   [[ -n "$original_branch" ]] || { echo 'error: detached HEAD is unsupported.' >&2; exit 1; }
-  if [[ "$original_branch" != "$branch" ]]; then
-    git -C "$repo_root" switch "$branch"
-  fi
+  mkdir -p "$(dirname "$binary")" "$channel_home" "$runtime_dir" "$target_dir"
   restore_branch() {
     if [[ "$(git -C "$repo_root" branch --show-current)" != "$original_branch" ]]; then
       git -C "$repo_root" switch "$original_branch"
     fi
   }
-  trap restore_branch RETURN
+  trap restore_branch EXIT
+  if [[ "$original_branch" != "$branch" ]]; then
+    git -C "$repo_root" switch "$branch"
+  fi
   (
     cd "$repo_root"
     JCODE_HOME="$channel_home" JCODE_RUNTIME_DIR="$runtime_dir" CARGO_TARGET_DIR="$target_dir" \
       ./scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode
   )
   install -m 755 "$target_dir/selfdev/jcode" "$binary"
-  trap - RETURN
+  trap - EXIT
   restore_branch
   printf 'Built %s channel: %s\n' "$channel" "$binary"
 }
